@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杭州逆向仓6号库 · 数据大屏</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --orange: #FF6B00;
+    --orange-light: #FF8C00;
+    --orange-deep: #E55A00;
+    --orange-glow: rgba(255, 107, 0, 0.4);
+    --orange-subtle: rgba(255, 107, 0, 0.08);
+    --cyan: #00D4FF;
+    --cyan-glow: rgba(0, 212, 255, 0.3);
+    --bg-dark: #040C1A;
+    --bg-card: rgba(8, 20, 40, 0.85);
+    --bg-card2: rgba(12, 28, 55, 0.9);
+    --border: rgba(255, 107, 0, 0.25);
+    --border-bright: rgba(255, 107, 0, 0.6);
+    --text-main: #F0F4FF;
+    --text-sub: #8BA0C0;
+    --text-orange: #FF8C00;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(255, 107, 0, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(0, 100, 200, 0.1) 0%, transparent 50%),
+      linear-gradient(180deg, #040C1A 0%, #060F20 100%);
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,107,0,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,107,0,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 70px;
+    background: linear-gradient(90deg, rgba(255,107,0,0.08) 0%, rgba(8,20,40,0.95) 50%, rgba(0,150,255,0.05) 100%);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--orange), var(--cyan), transparent);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .header-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--orange), var(--orange-deep));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 0 16px var(--orange-glow);
+  }
+
+  .header-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    background: linear-gradient(90deg, #FF8C00, #FFD700, #FF6B00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+
+  .header-sub {
+    font-size: 11px;
+    color: var(--text-sub);
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .header-center {
+    text-align: center;
+  }
+
+  .header-date {
+    font-size: 13px;
+    color: var(--text-sub);
+    letter-spacing: 1px;
+  }
+
+  .header-time {
+    font-size: 26px;
+    font-weight: 300;
+    color: var(--cyan);
+    letter-spacing: 3px;
+    text-shadow: 0 0 20px var(--cyan-glow);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: 0.5px;
+    border: none;
+    outline: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--orange), var(--orange-deep));
+    color: #fff;
+    box-shadow: 0 0 14px var(--orange-glow);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--orange-glow); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--orange-light);
+    border: 1px solid var(--border-bright);
+  }
+  .btn-outline:hover { background: var(--orange-subtle); }
+
+  .btn-ghost {
+    background: rgba(0,212,255,0.08);
+    color: var(--cyan);
+    border: 1px solid rgba(0,212,255,0.25);
+  }
+  .btn-ghost:hover { background: rgba(0,212,255,0.15); }
+
+  /* ===== LAYOUT ===== */
+  .main {
+    position: relative;
+    z-index: 1;
+    padding: 20px 24px 24px;
+    display: grid;
+    grid-template-columns: 320px 1fr 320px;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+  }
+
+  /* ===== CARD ===== */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    backdrop-filter: blur(12px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--orange), transparent);
+    opacity: 0.7;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-orange);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: linear-gradient(180deg, var(--orange), var(--orange-deep));
+    border-radius: 2px;
+    box-shadow: 0 0 8px var(--orange-glow);
+  }
+
+  /* ===== KPI CARDS ===== */
+  .kpi-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .kpi-card:hover { border-color: var(--border-bright); box-shadow: 0 0 20px var(--orange-glow); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--orange), transparent);
+  }
+
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-sub);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #FFAC40, #FF6B00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .kpi-unit {
+    font-size: 12px;
+    color: var(--text-sub);
+  }
+
+  .kpi-trend {
+    font-size: 11px;
+    margin-top: 6px;
+  }
+  .kpi-trend.up { color: #FF6B6B; }
+  .kpi-trend.down { color: #52C41A; }
+
+  /* ===== CHART AREA ===== */
+  .chart-main {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .chart-wrap {
+    width: 100%; height: 320px;
+  }
+
+  /* ===== LEFT PANEL ===== */
+  .panel-left {
+    grid-column: 1;
+    grid-row: 2 / 4;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ===== RIGHT PANEL ===== */
+  .panel-right {
+    grid-column: 3;
+    grid-row: 2 / 4;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ===== BOTTOM CENTER ===== */
+  .chart-bottom {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  /* ===== TABLE ===== */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .data-table th {
+    background: rgba(255,107,0,0.12);
+    color: var(--orange-light);
+    padding: 8px 10px;
+    text-align: center;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table td {
+    padding: 7px 10px;
+    text-align: center;
+    color: var(--text-main);
+    border-bottom: 1px solid rgba(255,107,0,0.06);
+  }
+
+  .data-table tr:hover td { background: var(--orange-subtle); }
+
+  .data-table td.highlight { color: var(--orange-light); font-weight: 600; }
+
+  /* ===== TURNOVER BARS ===== */
+  .turnover-item {
+    margin-bottom: 16px;
+  }
+
+  .turnover-top {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .turnover-name {
+    font-size: 12px;
+    color: var(--text-sub);
+    letter-spacing: 0.5px;
+  }
+
+  .turnover-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--orange-light);
+  }
+
+  .turnover-val span {
+    font-size: 11px;
+    color: var(--text-sub);
+    font-weight: 400;
+  }
+
+  .bar-track {
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    position: relative;
+    transition: width 1s ease;
+  }
+
+  .bar-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 2px;
+  }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: #0A1830;
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 28px 32px;
+    width: 520px;
+    max-width: 94vw;
+    box-shadow: 0 0 60px rgba(255,107,0,0.2);
+    position: relative;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--orange), var(--orange-deep));
+  }
+
+  .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-orange);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: none;
+    border: none;
+    color: var(--text-sub);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--orange); }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-bottom: 6px;
+    display: block;
+    letter-spacing: 0.5px;
+  }
+
+  .form-input {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--text-main);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: var(--orange); }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .form-section-title {
+    font-size: 12px;
+    color: var(--orange-light);
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin: 18px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ===== UPLOAD ZONE ===== */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--orange);
+    background: var(--orange-subtle);
+  }
+
+  .upload-icon { font-size: 36px; margin-bottom: 10px; }
+  .upload-text { font-size: 13px; color: var(--text-sub); }
+  .upload-text strong { color: var(--orange-light); }
+
+  /* ===== ANOMALY LIST ===== */
+  .anomaly-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,107,0,0.07);
+  }
+
+  .anomaly-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dot-red { background: #FF4D4F; box-shadow: 0 0 6px rgba(255,77,79,0.6); }
+  .dot-orange { background: var(--orange); box-shadow: 0 0 6px var(--orange-glow); }
+  .dot-yellow { background: #FAAD14; box-shadow: 0 0 6px rgba(250,173,20,0.5); }
+  .dot-green { background: #52C41A; box-shadow: 0 0 6px rgba(82,196,26,0.5); }
+
+  .anomaly-label { font-size: 12px; color: var(--text-sub); flex: 1; }
+  .anomaly-val { font-size: 13px; font-weight: 600; color: var(--text-main); }
+  .anomaly-pct { font-size: 11px; color: var(--text-sub); margin-left: 4px; }
+
+  /* ===== PULSE DOT ===== */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  .live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #52C41A;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 8px rgba(82,196,26,0.7);
+  }
+
+  /* ===== SCAN LINE ===== */
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    top: 90px; right: 24px;
+    background: #0A1830;
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--text-main);
+    z-index: 2000;
+    transform: translateX(120%);
+    transition: transform 0.35s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+
+  .toast.show { transform: translateX(0); }
+  .toast.success { border-color: #52C41A; }
+  .toast.error { border-color: #FF4D4F; }
+
+  /* ===== TAG ===== */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .tag-orange { background: rgba(255,107,0,0.15); color: var(--orange-light); border: 1px solid rgba(255,107,0,0.3); }
+  .tag-cyan { background: rgba(0,212,255,0.1); color: var(--cyan); border: 1px solid rgba(0,212,255,0.25); }
+  .tag-green { background: rgba(82,196,26,0.1); color: #73D13D; border: 1px solid rgba(82,196,26,0.25); }
+  .tag-red { background: rgba(255,77,79,0.1); color: #FF7875; border: 1px solid rgba(255,77,79,0.25); }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.3); border-radius: 2px; }
+
+  /* Data edit table */
+  .edit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .edit-table th { background: rgba(255,107,0,0.1); color: var(--orange-light); padding: 7px 8px; font-weight: 600; text-align: left; }
+  .edit-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,107,0,0.07); }
+  .edit-table input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid transparent; border-radius: 4px; padding: 4px 6px; color: var(--text-main); font-size: 12px; }
+  .edit-table input:focus { border-color: var(--orange); outline: none; background: rgba(255,107,0,0.08); }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-icon">🏭</div>
+    <div>
+      <div class="header-title">杭州逆向仓6号库 · 数据大屏</div>
+      <div class="header-sub"><span class="live-dot"></span>REAL-TIME MONITORING · HANGZHOU WAREHOUSE NO.6</div>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="header-date" id="dateStr">--</div>
+    <div class="header-time" id="timeStr">--:--:--</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="openModal('editModal')">✏️ 手动修改</button>
+    <button class="btn btn-outline" onclick="downloadTemplate()">⬇ 下载模板</button>
+    <button class="btn btn-primary" onclick="openModal('importModal')">⬆ 导入数据</button>
+  </div>
+</header>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- ROW 1: KPI CARDS -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">📦 今日入库（件）</div>
+      <div class="kpi-value" id="kpi-inToday">4,608</div>
+      <div class="kpi-unit">台次</div>
+      <div class="kpi-trend up" id="kpi-inTrend">▲ 较昨日 +12.3%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🚚 今日出库（件）</div>
+      <div class="kpi-value" id="kpi-outToday">0</div>
+      <div class="kpi-unit">台次</div>
+      <div class="kpi-trend" id="kpi-outTrend" style="color: var(--text-sub);">— 暂无出库记录</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">📊 本月累计入库</div>
+      <div class="kpi-value" id="kpi-inMonth">4,608</div>
+      <div class="kpi-unit">台次</div>
+      <div class="kpi-trend down">▼ 6月截至当日</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">📤 本月累计出库</div>
+      <div class="kpi-value" id="kpi-outMonth">0</div>
+      <div class="kpi-unit">台次</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">⚡ 异常率</div>
+      <div class="kpi-value" id="kpi-anomaly">2.49%</div>
+      <div class="kpi-unit">当期阿里签退</div>
+      <div class="kpi-trend up">▲ 需关注</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">✅ 退货达成率（5月）</div>
+      <div class="kpi-value" id="kpi-achieve">98.5%</div>
+      <div class="kpi-unit">累计达成/应退</div>
+      <div class="kpi-trend down">▼ 正常范围</div>
+    </div>
+  </div>
+
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+
+    <!-- 周转天数 -->
+    <div class="card" style="flex:1;">
+      <div class="card-header">
+        <div class="card-title">周转天数分析</div>
+        <span class="tag tag-orange">重点指标</span>
+      </div>
+      <div id="turnoverBars">
+        <!-- JS 渲染 -->
+      </div>
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
+        <div style="font-size:11px; color:var(--text-sub); margin-bottom:8px;">各品类在库金额（万元）</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div style="background:rgba(255,107,0,0.08); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:10px; color:var(--text-sub);">全品</div>
+            <div style="font-size:16px; font-weight:700; color:var(--orange-light);" id="inv-all">5,566</div>
+            <div style="font-size:10px; color:var(--text-sub);">万元</div>
+          </div>
+          <div style="background:rgba(0,212,255,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:10px; color:var(--text-sub);">小电</div>
+            <div style="font-size:16px; font-weight:700; color:var(--cyan);" id="inv-xd">1,884</div>
+            <div style="font-size:10px; color:var(--text-sub);">万元</div>
+          </div>
+          <div style="background:rgba(82,196,26,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:10px; color:var(--text-sub);">炊具</div>
+            <div style="font-size:16px; font-weight:700; color:#73D13D;" id="inv-cj">3,542</div>
+            <div style="font-size:10px; color:var(--text-sub);">万元</div>
+          </div>
+          <div style="background:rgba(250,173,20,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:10px; color:var(--text-sub);">水清</div>
+            <div style="font-size:16px; font-weight:700; color:#FFD666;" id="inv-sq">555</div>
+            <div style="font-size:10px; color:var(--text-sub);">万元</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 破损汇总 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">破损异常汇总</div>
+        <span class="tag tag-cyan">6.1 当日</span>
+      </div>
+      <div id="anomalyList">
+        <!-- JS 渲染 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER CHART: 周转天数 -->
+  <div class="card chart-main">
+    <div class="card-header">
+      <div class="card-title">各品类周转天数对比</div>
+      <span class="tag tag-orange">核心图表</span>
+    </div>
+    <div class="chart-wrap" id="turnoverChart"></div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel-right">
+
+    <!-- 收货来源分布 -->
+    <div class="card" style="flex:1;">
+      <div class="card-header">
+        <div class="card-title">收货来源分布</div>
+        <span class="tag tag-cyan">今日</span>
+      </div>
+      <div class="chart-wrap" id="sourceChart" style="height:200px;"></div>
+      <table class="data-table" style="margin-top:10px;">
+        <thead>
+          <tr><th>来源</th><th>数量</th><th>占比</th></tr>
+        </thead>
+        <tbody id="sourceTbody">
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 出库构成 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">出库类型分布</div>
+        <span class="tag tag-green">当月</span>
+      </div>
+      <div class="chart-wrap" id="outChart" style="height:180px;"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM CENTER: 月度趋势 -->
+  <div class="card chart-bottom">
+    <div class="card-header">
+      <div class="card-title">月度出入库趋势对比</div>
+      <span class="tag tag-cyan">1—6月</span>
+    </div>
+    <div class="chart-wrap" id="trendChart" style="height:260px;"></div>
+  </div>
+
+</div>
+
+<!-- ============ IMPORT MODAL ============ -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <div class="modal-title">⬆ 导入数据</div>
+    <button class="modal-close" onclick="closeModal('importModal')">✕</button>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondrop="onDrop(event)">
+      <div class="upload-icon">📁</div>
+      <div class="upload-text">
+        <strong>点击选择文件</strong> 或拖拽到此处<br>
+        <span style="font-size:11px; color:var(--text-sub);">支持 .xlsx / .xls 格式，需与模板列名一致</span>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileImport(event)">
+    <div style="margin-top:20px; text-align:right; display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="downloadTemplate()">⬇ 下载模板</button>
+      <button class="btn btn-primary" onclick="closeModal('importModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EDIT MODAL ============ -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal" style="width:620px;">
+    <div class="modal-title">✏️ 手动修改数据</div>
+    <button class="modal-close" onclick="closeModal('editModal')">✕</button>
+
+    <div class="form-section-title">▸ 今日收货数据</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">阿里签退（台）</label>
+        <input class="form-input" type="number" id="edit-aliIn" value="3527">
+      </div>
+      <div class="form-group">
+        <label class="form-label">唯品会（台）</label>
+        <input class="form-input" type="number" id="edit-vipIn" value="824">
+      </div>
+      <div class="form-group">
+        <label class="form-label">其他（台）</label>
+        <input class="form-input" type="number" id="edit-otherIn" value="257">
+      </div>
+      <div class="form-group">
+        <label class="form-label">异常数量（台）</label>
+        <input class="form-input" type="number" id="edit-anomaly" value="115">
+      </div>
+    </div>
+
+    <div class="form-section-title">▸ 周转天数（各品类）</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">全品（天）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-t-all" value="74.23">
+      </div>
+      <div class="form-group">
+        <label class="form-label">小电（天）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-t-xd" value="28.76">
+      </div>
+      <div class="form-group">
+        <label class="form-label">炊具（天）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-t-cj" value="335.68">
+      </div>
+      <div class="form-group">
+        <label class="form-label">水清（天）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-t-sq" value="182.03">
+      </div>
+    </div>
+
+    <div class="form-section-title">▸ 在库金额（万元）</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">全品在库（万）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-inv-all" value="5566.12">
+      </div>
+      <div class="form-group">
+        <label class="form-label">小电在库（万）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-inv-xd" value="1883.80">
+      </div>
+      <div class="form-group">
+        <label class="form-label">炊具在库（万）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-inv-cj" value="3541.88">
+      </div>
+      <div class="form-group">
+        <label class="form-label">水清在库（万）</label>
+        <input class="form-input" type="number" step="0.01" id="edit-inv-sq" value="555.43">
+      </div>
+    </div>
+
+    <div class="form-section-title">▸ 月度汇总（月份选择后修改）</div>
+    <div class="form-group">
+      <label class="form-label">选择月份</label>
+      <select class="form-input" id="edit-month" onchange="loadMonthData()">
+        <option value="0">1月</option>
+        <option value="1">2月</option>
+        <option value="2">3月</option>
+        <option value="3">4月</option>
+        <option value="4">5月</option>
+        <option value="5" selected>6月</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">月入库合计</label>
+        <input class="form-input" type="number" id="edit-m-in" value="4608">
+      </div>
+      <div class="form-group">
+        <label class="form-label">月出库合计</label>
+        <input class="form-input" type="number" id="edit-m-out" value="0">
+      </div>
+    </div>
+
+    <div style="margin-top:22px; display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal('editModal')">取消</button>
+      <button class="btn btn-primary" onclick="applyEdit()">✓ 保存并刷新</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DATA STORE
+// ============================================================
+let DATA = {
+  // 今日
+  todayIn: 4608,
+  todayOut: 0,
+
+  // 周转天数
+  turnover: {
+    all:  74.23,
+    xd:   28.76,
+    cj:  335.68,
+    sq:  182.03
+  },
+
+  // 在库金额（万元）
+  inventory: {
+    all:  5566.12,
+    xd:   1883.80,
+    cj:   3541.88,
+    sq:    555.43
+  },
+
+  // 出库（万元，累计）
+  outAmt: {
+    all:  74.99,
+    xd:   65.50,
+    cj:   10.55,
+    sq:    3.05
+  },
+
+  // 月度入库
+  monthIn: [181282, 101703, 172983, 139448, 152366, 4608],
+  // 月度出库
+  monthOut: [221218, 69304, 144939, 165729, 150204, 0],
+
+  // 今日来源明细
+  sources: [
+    { name: '阿里签退', value: 3527 },
+    { name: '唯品会',   value: 824  },
+    { name: '其他',     value: 257  },
+    { name: '京东',     value: 0    },
+    { name: '全退',     value: 0    },
+    { name: '沃尔玛',   value: 0    }
+  ],
+
+  // 破损汇总
+  damage: {
+    total:     18,
+    damaged:    0,
+    missing:    0,
+    noCode:    16,
+    nonJiuyang: 2
+  },
+
+  // 5月退货
+  returnRate: { target: 92658, done: 91274 },
+
+  // 当期异常率
+  anomalyRate: 0.0249,
+
+  months: ['1月','2月','3月','4月','5月','6月']
+};
+
+// ============================================================
+// CLOCK
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const d = now.toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  const t = now.toTimeString().slice(0,8);
+  document.getElementById('dateStr').textContent = d;
+  document.getElementById('timeStr').textContent = t;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// KPI
+// ============================================================
+function renderKPI() {
+  document.getElementById('kpi-inToday').textContent = DATA.todayIn.toLocaleString();
+  document.getElementById('kpi-outToday').textContent = DATA.todayOut.toLocaleString();
+  document.getElementById('kpi-inMonth').textContent = DATA.monthIn[5].toLocaleString();
+  document.getElementById('kpi-outMonth').textContent = DATA.monthOut[5].toLocaleString();
+  document.getElementById('kpi-anomaly').textContent = (DATA.anomalyRate * 100).toFixed(2) + '%';
+  document.getElementById('kpi-achieve').textContent = (DATA.returnRate.done / DATA.returnRate.target * 100).toFixed(1) + '%';
+}
+
+// ============================================================
+// TURNOVER BARS (left panel)
+// ============================================================
+function renderTurnoverBars() {
+  const cats = [
+    { label:'全品', key:'all', color:'#FF8C00', bg:'rgba(255,140,0,0.8)' },
+    { label:'小电', key:'xd',  color:'#00D4FF', bg:'rgba(0,212,255,0.8)' },
+    { label:'炊具', key:'cj',  color:'#73D13D', bg:'rgba(115,209,61,0.8)' },
+    { label:'水清', key:'sq',  color:'#FFD666', bg:'rgba(255,214,102,0.8)' }
+  ];
+  const max = Math.max(...cats.map(c => DATA.turnover[c.key]));
+  const container = document.getElementById('turnoverBars');
+  container.innerHTML = cats.map(c => {
+    const val = DATA.turnover[c.key];
+    const pct = Math.round(val / max * 100);
+    const flag = val > 180 ? '<span class="tag tag-red" style="font-size:10px;">偏高</span>' :
+                 val > 100 ? '<span class="tag tag-orange" style="font-size:10px;">关注</span>' :
+                             '<span class="tag tag-green" style="font-size:10px;">正常</span>';
+    return `
+      <div class="turnover-item">
+        <div class="turnover-top">
+          <span class="turnover-name">${c.label} ${flag}</span>
+          <span class="turnover-val">${val.toFixed(1)}<span> 天</span></span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%; background:linear-gradient(90deg,${c.bg},${c.color});"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Inventory values
+  document.getElementById('inv-all').textContent = DATA.inventory.all.toLocaleString(undefined, {maximumFractionDigits:0});
+  document.getElementById('inv-xd').textContent  = DATA.inventory.xd.toLocaleString(undefined, {maximumFractionDigits:0});
+  document.getElementById('inv-cj').textContent  = DATA.inventory.cj.toLocaleString(undefined, {maximumFractionDigits:0});
+  document.getElementById('inv-sq').textContent  = DATA.inventory.sq.toLocaleString(undefined, {maximumFractionDigits:0});
+}
+
+// ============================================================
+// ANOMALY LIST
+// ============================================================
+function renderAnomalyList() {
+  const dm = DATA.damage;
+  const items = [
+    { label:'分拣后入库量', val: dm.total === 18 ? 3319 : dm.total * 180, dot:'dot-green', pct: '' },
+    { label:'总计异常',     val: dm.total,     dot:'dot-orange', pct: (dm.total/3319*100).toFixed(2)+'%' },
+    { label:'破损',         val: dm.damaged,   dot:'dot-red',    pct: '' },
+    { label:'缺件',         val: dm.missing,   dot:'dot-orange', pct: '' },
+    { label:'无码',         val: dm.noCode,    dot:'dot-yellow', pct: (dm.noCode/3319*100).toFixed(2)+'%' },
+    { label:'非九阳',       val: dm.nonJiuyang,dot:'dot-red',    pct: (dm.nonJiuyang/3319*100).toFixed(3)+'%' }
+  ];
+  document.getElementById('anomalyList').innerHTML = items.map(i => `
+    <div class="anomaly-item">
+      <div class="anomaly-dot ${i.dot}"></div>
+      <div class="anomaly-label">${i.label}</div>
+      <div class="anomaly-val">${i.val}<span class="anomaly-pct">${i.pct}</span></div>
+    </div>`).join('');
+}
+
+// ============================================================
+// CHARTS
+// ============================================================
+
+// 1. Turnover Chart (center - 核心图表)
+function renderTurnoverChart() {
+  const chart = echarts.init(document.getElementById('turnoverChart'), 'dark');
+  const cats = ['全品', '小电', '炊具', '水清'];
+  const vals = [DATA.turnover.all, DATA.turnover.xd, DATA.turnover.cj, DATA.turnover.sq];
+  const colors = ['#FF8C00', '#00D4FF', '#73D13D', '#FFD666'];
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(8,20,40,0.95)',
+      borderColor: 'rgba(255,107,0,0.4)',
+      textStyle: { color: '#F0F4FF', fontSize: 13 },
+      formatter: p => `<b>${p[0].name}</b><br/>周转天数：<span style="color:${colors[p[0].dataIndex]};font-weight:700;">${p[0].value.toFixed(2)} 天</span>`
+    },
+    grid: { top: 30, right: 30, bottom: 50, left: 60 },
+    xAxis: {
+      type: 'category',
+      data: cats,
+      axisLine: { lineStyle: { color: 'rgba(255,107,0,0.3)' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#8BA0C0', fontSize: 13, fontWeight: 600 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '天数',
+      nameTextStyle: { color: '#8BA0C0', fontSize: 11 },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: 'rgba(255,107,0,0.08)', type: 'dashed' } },
+      axisLabel: { color: '#8BA0C0', fontSize: 11 }
+    },
+    series: [{
+      type: 'bar',
+      data: vals.map((v, i) => ({
+        value: v,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: colors[i] },
+            { offset: 1, color: colors[i] + '44' }
+          ]),
+          borderRadius: [6, 6, 0, 0]
+        }
+      })),
+      barMaxWidth: 70,
+      label: {
+        show: true,
+        position: 'top',
+        color: '#F0F4FF',
+        fontSize: 13,
+        fontWeight: 700,
+        formatter: p => p.value.toFixed(1) + '天'
+      },
+      emphasis: { itemStyle: { shadowBlur: 20, shadowColor: 'rgba(255,107,0,0.5)' } }
+    }, {
+      // 警戒线 180天
+      type: 'line',
+      data: [180, 180, 180, 180],
+      lineStyle: { color: '#FF4D4F', type: 'dashed', width: 1.5 },
+      symbol: 'none',
+      label: { show: false },
+      tooltip: { show: false },
+      markLine: { silent: true }
+    }]
+  };
+
+  chart.setOption(option);
+
+  // Mark line via markLine on bar series
+  const option2 = JSON.parse(JSON.stringify(option));
+  option2.series[0].markLine = {
+    silent: true,
+    lineStyle: { color: '#FF4D4F', type: 'dashed', width: 1.5 },
+    label: { formatter: '警戒线 180天', color: '#FF7875', fontSize: 11, position: 'end' },
+    data: [{ yAxis: 180 }]
+  };
+  option2.series.pop();
+  chart.setOption(option2, true);
+
+  window.addEventListener('resize', () => chart.resize());
+  return chart;
+}
+
+// 2. Source Pie Chart (right panel)
+function renderSourceChart() {
+  const chart = echarts.init(document.getElementById('sourceChart'), 'dark');
+  const filtered = DATA.sources.filter(s => s.value > 0);
+  const colors = ['#FF8C00','#00D4FF','#73D13D','#FFD666','#A855F7','#EC4899'];
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(8,20,40,0.95)',
+      borderColor: 'rgba(255,107,0,0.4)',
+      textStyle: { color: '#F0F4FF' },
+      formatter: p => `${p.name}<br/><span style="color:${p.color};font-weight:700;">${p.value} 台</span>（${p.percent}%）`
+    },
+    legend: { show: false },
+    series: [{
+      type: 'pie',
+      radius: ['38%', '70%'],
+      center: ['50%', '50%'],
+      data: filtered,
+      itemStyle: { borderRadius: 5, borderColor: 'transparent', borderWidth: 2 },
+      label: {
+        show: true,
+        color: '#8BA0C0',
+        fontSize: 11,
+        formatter: p => `${p.name}\n${p.percent}%`
+      },
+      emphasis: { itemStyle: { shadowBlur: 16, shadowColor: 'rgba(255,107,0,0.5)' } }
+    }],
+    color: colors
+  };
+
+  chart.setOption(option);
+
+  // Table
+  const tbody = document.getElementById('sourceTbody');
+  const total = filtered.reduce((a, b) => a + b.value, 0);
+  tbody.innerHTML = filtered.map((s, i) => `
+    <tr>
+      <td><span style="color:${colors[i]};margin-right:6px;">●</span>${s.name}</td>
+      <td class="highlight">${s.value.toLocaleString()}</td>
+      <td>${(s.value/total*100).toFixed(1)}%</td>
+    </tr>`).join('');
+
+  window.addEventListener('resize', () => chart.resize());
+  return chart;
+}
+
+// 3. Out type chart
+function renderOutChart() {
+  const chart = echarts.init(document.getElementById('outChart'), 'dark');
+  // 最近一个有出库的月
+  const outMonthIdx = DATA.monthOut.map((v,i) => ({v,i})).filter(x=>x.v>0).pop() || {i:4};
+  const mi = outMonthIdx.i;
+  // 使用虚构的退供/报废/其他比例（按历史数据推算）
+  const outTypes = [
+    { name:'退供', value: Math.round(DATA.monthOut[mi] * 0.905) },
+    { name:'报废', value: Math.round(DATA.monthOut[mi] * 0.088) },
+    { name:'其他', value: Math.round(DATA.monthOut[mi] * 0.007) }
+  ];
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(8,20,40,0.95)',
+      borderColor: 'rgba(255,107,0,0.4)',
+      textStyle: { color: '#F0F4FF' }
+    },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '72%'],
+      center: ['50%', '50%'],
+      data: outTypes,
+      label: {
+        color: '#8BA0C0',
+        fontSize: 11,
+        formatter: p => `${p.name} ${p.percent}%`
+      },
+      emphasis: { itemStyle: { shadowBlur: 12 } }
+    }],
+    color: ['#FF8C00', '#FF4D4F', '#8BA0C0']
+  };
+
+  chart.setOption(option);
+  window.addEventListener('resize', () => chart.resize());
+  return chart;
+}
+
+// 4. Monthly Trend
+function renderTrendChart() {
+  const chart = echarts.init(document.getElementById('trendChart'), 'dark');
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(8,20,40,0.95)',
+      borderColor: 'rgba(255,107,0,0.4)',
+      textStyle: { color: '#F0F4FF', fontSize: 12 },
+      formatter: params => {
+        let s = `<b>${params[0].axisValue}</b><br/>`;
+        params.forEach(p => {
+          s += `<span style="color:${p.color};">●</span> ${p.seriesName}：<b>${p.value.toLocaleString()}</b> 台<br/>`;
+        });
+        return s;
+      }
+    },
+    legend: {
+      top: 0, right: 10,
+      textStyle: { color: '#8BA0C0', fontSize: 12 },
+      itemWidth: 14, itemHeight: 8
+    },
+    grid: { top: 40, right: 20, bottom: 40, left: 70 },
+    xAxis: {
+      type: 'category',
+      data: DATA.months,
+      axisLine: { lineStyle: { color: 'rgba(255,107,0,0.3)' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#8BA0C0', fontSize: 12 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: 'rgba(255,107,0,0.07)', type: 'dashed' } },
+      axisLabel: { color: '#8BA0C0', fontSize: 11, formatter: v => v >= 10000 ? (v/10000).toFixed(0)+'万' : v }
+    },
+    series: [
+      {
+        name: '入库量',
+        type: 'bar',
+        data: DATA.monthIn,
+        barMaxWidth: 30,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#FF8C00' },
+            { offset: 1, color: 'rgba(255,140,0,0.2)' }
+          ]),
+          borderRadius: [4, 4, 0, 0]
+        }
+      },
+      {
+        name: '出库量',
+        type: 'bar',
+        data: DATA.monthOut,
+        barMaxWidth: 30,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#00D4FF' },
+            { offset: 1, color: 'rgba(0,212,255,0.15)' }
+          ]),
+          borderRadius: [4, 4, 0, 0]
+        }
+      },
+      {
+        name: '净库存变化',
+        type: 'line',
+        data: DATA.monthIn.map((v, i) => v - DATA.monthOut[i]),
+        smooth: true,
+        lineStyle: { color: '#FAAD14', width: 2 },
+        itemStyle: { color: '#FAAD14' },
+        symbol: 'circle',
+        symbolSize: 5,
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(250,173,20,0.15)' },
+            { offset: 1, color: 'transparent' }
+          ])
+        }
+      }
+    ]
+  };
+
+  chart.setOption(option);
+  window.addEventListener('resize', () => chart.resize());
+  return chart;
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => {
+    if (e.target === el) el.classList.remove('active');
+  });
+});
+
+// ============================================================
+// EDIT SAVE
+// ============================================================
+function loadMonthData() {
+  const mi = parseInt(document.getElementById('edit-month').value);
+  document.getElementById('edit-m-in').value  = DATA.monthIn[mi];
+  document.getElementById('edit-m-out').value = DATA.monthOut[mi];
+}
+
+function applyEdit() {
+  // Today
+  const aliIn   = +document.getElementById('edit-aliIn').value   || 0;
+  const vipIn   = +document.getElementById('edit-vipIn').value   || 0;
+  const otherIn = +document.getElementById('edit-otherIn').value || 0;
+  const anomaly = +document.getElementById('edit-anomaly').value || 0;
+
+  DATA.sources[0].value = aliIn;
+  DATA.sources[1].value = vipIn;
+  DATA.sources[2].value = otherIn;
+  DATA.damage.total = anomaly;
+  DATA.todayIn = aliIn + vipIn + otherIn;
+
+  // Turnover
+  DATA.turnover.all = +document.getElementById('edit-t-all').value || DATA.turnover.all;
+  DATA.turnover.xd  = +document.getElementById('edit-t-xd').value  || DATA.turnover.xd;
+  DATA.turnover.cj  = +document.getElementById('edit-t-cj').value  || DATA.turnover.cj;
+  DATA.turnover.sq  = +document.getElementById('edit-t-sq').value  || DATA.turnover.sq;
+
+  // Inventory
+  DATA.inventory.all = +document.getElementById('edit-inv-all').value || DATA.inventory.all;
+  DATA.inventory.xd  = +document.getElementById('edit-inv-xd').value  || DATA.inventory.xd;
+  DATA.inventory.cj  = +document.getElementById('edit-inv-cj').value  || DATA.inventory.cj;
+  DATA.inventory.sq  = +document.getElementById('edit-inv-sq').value  || DATA.inventory.sq;
+
+  // Monthly
+  const mi = parseInt(document.getElementById('edit-month').value);
+  DATA.monthIn[mi]  = +document.getElementById('edit-m-in').value  || DATA.monthIn[mi];
+  DATA.monthOut[mi] = +document.getElementById('edit-m-out').value || DATA.monthOut[mi];
+
+  // Anomaly rate
+  DATA.anomalyRate = aliIn > 0 ? anomaly / aliIn : DATA.anomalyRate;
+
+  refreshAll();
+  closeModal('editModal');
+  showToast('✅ 数据已更新', 'success');
+}
+
+// ============================================================
+// IMPORT
+// ============================================================
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('dragover');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processImportFile(file);
+}
+
+function handleFileImport(e) {
+  const file = e.target.files[0];
+  if (file) processImportFile(file);
+}
+
+function processImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: 0 });
+
+      // 期望格式：第2行起，每行: [月份, 入库量, 出库量, 周转全品, 周转小电, 周转炊具, 周转水清]
+      let imported = 0;
+      rows.forEach((row, idx) => {
+        if (idx === 0) return; // header
+        const [month, inVal, outVal, tAll, tXd, tCj, tSq] = row;
+        const mi = parseMonth(String(month));
+        if (mi >= 0) {
+          if (inVal)  DATA.monthIn[mi]  = +inVal;
+          if (outVal) DATA.monthOut[mi] = +outVal;
+          if (tAll)   DATA.turnover.all = +tAll;
+          if (tXd)    DATA.turnover.xd  = +tXd;
+          if (tCj)    DATA.turnover.cj  = +tCj;
+          if (tSq)    DATA.turnover.sq  = +tSq;
+          imported++;
+        }
+      });
+
+      refreshAll();
+      closeModal('importModal');
+      showToast(`✅ 导入成功，已更新 ${imported} 条记录`, 'success');
+    } catch(err) {
+      showToast('❌ 文件解析失败，请检查格式', 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseMonth(s) {
+  const map = {'1月':0,'2月':1,'3月':2,'4月':3,'5月':4,'6月':5,'7月':6,'8月':7,'9月':8,'10月':9,'11月':10,'12月':11,
+               '1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,'9':8,'10':9,'11':10,'12':11,
+               'jan':0,'feb':1,'mar':2,'apr':3,'may':4,'jun':5,'jul':6,'aug':7,'sep':8,'oct':9,'nov':10,'dec':11};
+  return map[s.toLowerCase().trim()] !== undefined ? map[s.toLowerCase().trim()] : -1;
+}
+
+// ============================================================
+// TEMPLATE DOWNLOAD
+// ============================================================
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: 月度数据
+  const monthData = [
+    ['月份', '入库量（台）', '出库量（台）', '周转天数_全品', '周转天数_小电', '周转天数_炊具', '周转天数_水清'],
+    ['1月', 181282, 221218, 74.23, 28.76, 335.68, 182.03],
+    ['2月', 101703, 69304,  '',    '',    '',      ''    ],
+    ['3月', 172983, 144939, '',    '',    '',      ''    ],
+    ['4月', 139448, 165729, '',    '',    '',      ''    ],
+    ['5月', 152366, 150204, '',    '',    '',      ''    ],
+    ['6月', 4608,   0,      '',    '',    '',      ''    ]
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(monthData);
+  ws1['!cols'] = [{wch:8},{wch:14},{wch:14},{wch:16},{wch:16},{wch:16},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws1, '月度汇总');
+
+  // Sheet 2: 今日明细
+  const dailyData = [
+    ['日期', '阿里签退', '京东', '全退', '唯品会', '沃尔玛', '其他', '异常数量', '在库金额_全品(万)', '在库金额_小电(万)', '在库金额_炊具(万)', '在库金额_水清(万)'],
+    ['2026-06-01', 3527, 0, 0, 824, 0, 257, 115, 5566.12, 1883.80, 3541.88, 555.43]
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(dailyData);
+  ws2['!cols'] = [{wch:12},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:18},{wch:18},{wch:18},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws2, '日报明细');
+
+  XLSX.writeFile(wb, '逆向仓数据大屏导入模板.xlsx');
+  showToast('✅ 模板下载成功', 'success');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ============================================================
+// REFRESH ALL
+// ============================================================
+let charts = {};
+
+function refreshAll() {
+  renderKPI();
+  renderTurnoverBars();
+  renderAnomalyList();
+
+  // Dispose and re-init charts
+  ['turnoverChart','sourceChart','outChart','trendChart'].forEach(id => {
+    const inst = echarts.getInstanceByDom(document.getElementById(id));
+    if (inst) inst.dispose();
+  });
+
+  charts.turnover = renderTurnoverChart();
+  charts.source   = renderSourceChart();
+  charts.out      = renderOutChart();
+  charts.trend    = renderTrendChart();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  loadMonthData();
+  refreshAll();
+});
+</script>
+</body>
+</html>
